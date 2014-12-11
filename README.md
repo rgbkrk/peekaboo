@@ -3,7 +3,7 @@ peekaboo
 
 Enables or disables a server on a load balancer on run.
 
-![image](https://cloud.githubusercontent.com/assets/836375/5401926/a80dadae-8145-11e4-81fe-0c7accdb0c6e.png)
+![Peek-a-boo gopher!](https://cloud.githubusercontent.com/assets/836375/5402205/ba8a72da-8147-11e4-9175-38a26b821515.gif)
 
 Designed to be bound to another service using systemd.
 
