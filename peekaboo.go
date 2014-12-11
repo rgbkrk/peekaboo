@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/pagination"
@@ -64,9 +66,44 @@ func findNodeByIPPort(
 	return found
 }
 
+func getIP(ipPtr *string) string {
+
+	// IP overriding order will be:
+	//  - The -ip flag takes primary precedence
+	//  - Service Net Environment variable
+	//  - Public Net Environment variable
+	//  - Gleaning a 10 dot out of the network interfaces
+	//  - eth0
+
+	serviceNetIPv4 := os.Getenv("RAX_SERVICENET_IPV4")
+	publicNetIPv4 := os.Getenv("RAX_PUBLICNET_IPV4")
+
+	switch {
+	case ipPtr != "":
+		return ipPtr
+	case serviceNetIPv4 != "":
+		return serviceNetIPv4
+	case publicNetIPv4 != "":
+		return publicNetIPv4
+	}
+
+	addrs, err := net.InterfaceAddrs()
+
+	for _, addr := range addrs {
+		cidr := addr.String()
+		ip := strings.Split(cidr, "/")[0]
+
+		if strings.HasPrefix(ip, "10.") {
+			return ip
+		}
+	}
+
+}
+
 func main() {
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
+	ipPtr := flag.String("ip", "", "Provide an IP address to register/deregister on the lb")
 	flag.Parse()
 
 	username := os.Getenv("OS_USERNAME")
@@ -75,8 +112,20 @@ func main() {
 
 	loadBalancerID, err := strconv.Atoi(os.Getenv("LOAD_BALANCER_ID"))
 
-	//nodeAddress := "10.223.224.23"
-	nodeAddress := "10.223.224.24"
+	log.Println(*ipPtr)
+	log.Println(serviceNetIPv4)
+	if serviceNetIPv4 == "" {
+		log.Println("empty")
+	} else {
+		log.Println("something")
+	}
+
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	nodeAddress := getIP(ipPtr)
+
 	nodePort := 80
 
 	if err != nil {
