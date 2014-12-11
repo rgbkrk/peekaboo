@@ -66,7 +66,7 @@ func findNodeByIPPort(
 	return found
 }
 
-func getIP(ipPtr *string) string {
+func getIP(ipPtr *string) (string, error) {
 
 	// IP overriding order will be:
 	//  - The -ip flag takes primary precedence
@@ -80,25 +80,32 @@ func getIP(ipPtr *string) string {
 
 	switch {
 	case *ipPtr != "":
-		return *ipPtr
+		return *ipPtr, nil
 	case serviceNetIPv4 != "":
-		return serviceNetIPv4
+		return serviceNetIPv4, nil
 	case publicNetIPv4 != "":
-		return publicNetIPv4
+		return publicNetIPv4, nil
 	}
 
 	addrs, err := net.InterfaceAddrs()
+
+	if err != nil {
+		return "", err
+	}
 
 	for _, addr := range addrs {
 		cidr := addr.String()
 		ip := strings.Split(cidr, "/")[0]
 
 		if strings.HasPrefix(ip, "10.") {
-			return ip
+			return ip, nil
 		}
 	}
 
-	return ""
+	// TODO: Find eth0
+	// TODO: Return error at end
+
+	return "", nil
 
 }
 
@@ -118,7 +125,7 @@ func main() {
 		log.Panicln(err)
 	}
 
-	nodeAddress := getIP(ipPtr)
+	nodeAddress, err := getIP(ipPtr)
 
 	nodePort := 80
 
