@@ -79,8 +79,8 @@ func getIP(ipPtr *string) string {
 	publicNetIPv4 := os.Getenv("RAX_PUBLICNET_IPV4")
 
 	switch {
-	case ipPtr != "":
-		return ipPtr
+	case *ipPtr != "":
+		return *ipPtr
 	case serviceNetIPv4 != "":
 		return serviceNetIPv4
 	case publicNetIPv4 != "":
@@ -98,6 +98,8 @@ func getIP(ipPtr *string) string {
 		}
 	}
 
+	return ""
+
 }
 
 func main() {
@@ -111,14 +113,6 @@ func main() {
 	region := os.Getenv("OS_REGION_NAME")
 
 	loadBalancerID, err := strconv.Atoi(os.Getenv("LOAD_BALANCER_ID"))
-
-	log.Println(*ipPtr)
-	log.Println(serviceNetIPv4)
-	if serviceNetIPv4 == "" {
-		log.Println("empty")
-	} else {
-		log.Println("something")
-	}
 
 	if err != nil {
 		log.Panicln(err)
