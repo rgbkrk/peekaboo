@@ -3,14 +3,13 @@ peekaboo
 
 ![Peek a boo my little gopher](https://cloud.githubusercontent.com/assets/836375/5406939/db93466c-8180-11e4-9424-ec85a04db052.gif)
 
-Enables or disables a server on a load balancer on run.
-
-Designed to be bound to another service using systemd.
+GOAL: Automagically connect and disconnect services to Rackspace load balancers over Service Net.
 
 ## Example run
 
+Start with a fresh host with Docker (or use a built binary):
+
 ```console
-$ # Fresh host
 $ docker run --net=host \
            -e LOAD_BALANCER_ID=8675309 \
            -e OS_USERNAME=rgbkrk \
@@ -21,7 +20,11 @@ $ docker run --net=host \
 2014/12/12 06:36:51 Setting 10.184.12.147:80 to be ENABLED on load balancer 64965
 2014/12/12 06:36:51 Creating new node
 2014/12/12 06:36:53 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
-$ # Same host, now we'll drain it off
+```
+
+Awesome, this host is now connected to the load balancer. Now disable it!
+
+```console
 $ docker run --net=host \
            -e LOAD_BALANCER_ID=8675309 \
            -e OS_USERNAME=rgbkrk \
@@ -32,7 +35,11 @@ $ docker run --net=host \
 2014/12/12 06:37:02 Setting 10.184.12.147:80 to be DRAINING on load balancer 64965
 2014/12/12 06:37:02 Updating existing node {10.184.12.147 256073 80 ONLINE ENABLED 0 PRIMARY}
 2014/12/12 06:37:06 Final node state: {10.184.12.147 256073 80 ONLINE DRAINING 1 PRIMARY}
-$ # Bring it back online
+```
+
+Back online for good measure
+
+```console
 $ docker run --net=host \
            -e LOAD_BALANCER_ID=8675309 \
            -e OS_USERNAME=rgbkrk \
