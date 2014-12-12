@@ -4,6 +4,7 @@
 *.so
 
 peekaboo
+peekaboo.default
 
 # Folders
 _obj
