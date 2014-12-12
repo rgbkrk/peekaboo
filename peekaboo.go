@@ -74,7 +74,7 @@ func getIP(ipPtr *string) (string, error) {
 	//  - The -ip flag takes primary precedence
 	//  - Service Net Environment variable
 	//  - Public Net Environment variable
-	//  - Gleaning a 10 dot out of the network interfaces
+	//  - Gleaning a 10 dot out of the network interfaces (typically eth1)
 	//  - eth0
 
 	serviceNetIPv4 := os.Getenv("RAX_SERVICENET_IPV4")
@@ -127,29 +127,54 @@ func getIP(ipPtr *string) (string, error) {
 }
 
 func main() {
+	var err error
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
-	ipPtr := flag.String("ip", "", "Provide an IP address to register/deregister on the lb")
+
+	//NOTE: peekaboo allows setting the IP by using
+	//        - environment variables: RAX_SERVICENET_IPV4 or RAX_PUBLICNET_IPV4
+	//        - finding an ip on the system starting with 10. (service net)
+	//        - locating the eth0 interface
+	//        - providing an ip as a flag is fine too and will take precedence
+	ipPtr := flag.String("ip", "", "IP address to register/deregister on the load balancer")
 	flag.Parse()
 
 	username := os.Getenv("OS_USERNAME")
 	APIKey := os.Getenv("OS_PASSWORD")
 	region := os.Getenv("OS_REGION_NAME")
 
-	loadBalancerID, err := strconv.Atoi(os.Getenv("LOAD_BALANCER_ID"))
-	if err != nil {
-		log.Fatalf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
+	// These get converted into integers later
+	strLoadBalancerID := os.Getenv("LOAD_BALANCER_ID")
+	strAppPort := os.Getenv("APP_PORT")
+
+	/**
+	 * Retrieve port for load balancer's node, defaulting to 80
+	 */
+	var nodePort = 80
+
+	if strAppPort == "" {
+		log.Printf("$APP_PORT not set, defaulting to 80")
+	} else {
+		nodePort, err = strconv.Atoi(strAppPort)
+		if err != nil {
+			log.Fatalf("Unable to parse integer from $APP_PORT: %v\n", strAppPort)
+		}
 	}
 
-	nodePort, err := strconv.Atoi(os.Getenv("APP_PORT"))
-	if err != nil {
-		log.Printf("Err: %v\n", err)
-		log.Fatalf("$APP_PORT not an integer: %v\n", loadBalancerID)
-	}
-
+	/**
+	 * Determine the IP Address for the load balancer's node
+	 */
 	nodeAddress, err := getIP(ipPtr)
 	if err != nil {
 		log.Fatalln(err)
+	}
+
+	/**
+	 * Retrive Load Balancer ID
+	 */
+	loadBalancerID, err := strconv.Atoi(strLoadBalancerID)
+	if err != nil {
+		log.Fatalf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
 	}
 
 	provider, err := rackspace.AuthenticatedClient(gophercloud.AuthOptions{
@@ -158,7 +183,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Fatalf("Trouble authenticating to Rackspace: %v\n", err)
 	}
 
 	client, err := rackspace.NewLBV1(provider, gophercloud.EndpointOpts{
@@ -166,7 +191,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Fatalf("Creating load balancer client in %v failed: %v\n", region, err)
 	}
 
 	log.Println("Client ready")
