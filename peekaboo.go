@@ -169,6 +169,9 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	log.Printf("Determined IP: %v", nodeAddress)
+	log.Printf("Determined Port: %v", nodePort)
+
 	/**
 	 * Retrive Load Balancer ID
 	 */
@@ -206,6 +209,8 @@ func main() {
 		//      when connections have dropped, and set to DISABLED
 		condition = nodes.DRAINING
 	}
+
+	log.Printf("Telling %v on port %v to be %v\n", nodeAddress, nodePort, condition)
 
 	if node != nil {
 		log.Printf("Found existing node %v", *node)
