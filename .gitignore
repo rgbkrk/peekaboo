@@ -3,6 +3,8 @@
 *.a
 *.so
 
+peekaboo
+
 # Folders
 _obj
 _test
