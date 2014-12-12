@@ -1,9 +1,9 @@
 peekaboo
 ========
 
-Enables or disables a server on a load balancer on run.
-
 ![Peek a boo my little gopher](https://cloud.githubusercontent.com/assets/836375/5406939/db93466c-8180-11e4-9424-ec85a04db052.gif)
+
+Enables or disables a server on a load balancer on run.
 
 Designed to be bound to another service using systemd.
 
