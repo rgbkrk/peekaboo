@@ -10,19 +10,39 @@ Designed to be bound to another service using systemd.
 ## Example run
 
 ```console
-docker run --net=host \
+$ # Fresh host
+$ docker run --net=host \
            -e LOAD_BALANCER_ID=8675309 \
            -e OS_USERNAME=rgbkrk \
            -e OS_REGION_NAME=IAD \
            -e OS_PASSWORD=deadbeef13617 \
            rgbkrk/peekaboo
-2014/12/12 06:09:53 $APP_PORT not set, defaulting to 80
-2014/12/12 06:09:53 Determined IP: 10.184.12.147
-2014/12/12 06:09:53 Determined Port: 80
-2014/12/12 06:09:53 Client ready
-2014/12/12 06:09:55 Telling 10.184.12.147 on port 80 to be ENABLED
-2014/12/12 06:09:55 Creating new node
-2014/12/12 06:09:58 Updated state for node: {10.184.12.147 256049 80 ONLINE ENABLED 1 PRIMARY}
+2014/12/12 06:36:49 $APP_PORT not set, defaulting to 80
+2014/12/12 06:36:51 Setting 10.184.12.147:80 to be ENABLED on load balancer 64965
+2014/12/12 06:36:51 Creating new node
+2014/12/12 06:36:53 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
+$ # Same host, now we'll drain it off
+$ docker run --net=host \
+           -e LOAD_BALANCER_ID=8675309 \
+           -e OS_USERNAME=rgbkrk \
+           -e OS_REGION_NAME=IAD \
+           -e OS_PASSWORD=deadbeef13617 \
+           rgbkrk/peekaboo -disable
+2014/12/12 06:37:01 $APP_PORT not set, defaulting to 80
+2014/12/12 06:37:02 Setting 10.184.12.147:80 to be DRAINING on load balancer 64965
+2014/12/12 06:37:02 Updating existing node {10.184.12.147 256073 80 ONLINE ENABLED 0 PRIMARY}
+2014/12/12 06:37:06 Final node state: {10.184.12.147 256073 80 ONLINE DRAINING 1 PRIMARY}
+$ # Bring it back online
+$ docker run --net=host \
+           -e LOAD_BALANCER_ID=8675309 \
+           -e OS_USERNAME=rgbkrk \
+           -e OS_REGION_NAME=IAD \
+           -e OS_PASSWORD=deadbeef13617 \
+           rgbkrk/peekaboo
+2014/12/12 06:37:18 $APP_PORT not set, defaulting to 80
+2014/12/12 06:37:20 Setting 10.184.12.147:80 to be ENABLED on load balancer 64965
+2014/12/12 06:37:20 Updating existing node {10.184.12.147 256073 80 ONLINE DRAINING 0 PRIMARY}
+2014/12/12 06:37:23 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
 ```
 
 ### ROADMAP
