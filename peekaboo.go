@@ -201,7 +201,7 @@ func main() {
 
 	waitForReady(client, loadBalancerID)
 
-	node := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
+	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
 
 	condition := nodes.ENABLED
 	if *disabledPtr {
@@ -212,15 +212,18 @@ func main() {
 
 	log.Printf("Telling %v on port %v to be %v\n", nodeAddress, nodePort, condition)
 
-	if node != nil {
-		log.Printf("Found existing node %v", *node)
+	if nodePtr != nil {
+		log.Printf("Found existing node %v", *nodePtr)
 
 		opts := nodes.UpdateOpts{
 			Condition: condition,
 		}
 
-		updateResult := nodes.Update(client, loadBalancerID, node.ID, opts)
-		log.Printf("Update result: %v\n", updateResult)
+		updateResult := nodes.Update(client, loadBalancerID, nodePtr.ID, opts)
+		err = updateResult.ExtractErr()
+		if err != nil {
+			log.Panicf("Updating node failed: %v", err)
+		}
 
 	} else {
 		log.Printf("Creating new node")
@@ -232,8 +235,23 @@ func main() {
 			},
 		}
 
-		nodeList := nodes.Create(client, loadBalancerID, opts)
-		log.Printf("Node made, total list: %v\n", nodeList)
+		nodePager := nodes.Create(client, loadBalancerID, opts)
+		nodeList, err := nodePager.ExtractNodes()
+		if err != nil || len(nodeList) != 1 {
+			log.Panicf("Something went terribly wrong on node creation: %v\n", nodeList)
+		}
+		nodePtr = &nodeList[0]
 	}
+
+	waitForReady(client, loadBalancerID)
+
+	// After update, get the version of the node Rackspace has
+	result := nodes.Get(client, loadBalancerID, nodePtr.ID)
+	nodePtr, err = result.Extract()
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	log.Printf("Updated state for node: %v\n", *nodePtr)
 
 }
