@@ -141,6 +141,7 @@ func main() {
 	var err error
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
+	drainingPtr := flag.Bool("drain", false, "Drain the node from the load balancer")
 
 	//NOTE: peekaboo allows setting the IP by using
 	//        - environment variables: RAX_SERVICENET_IPV4 or RAX_PUBLICNET_IPV4
@@ -218,6 +219,8 @@ func main() {
 
 	condition := nodes.ENABLED
 	if *disabledPtr {
+		condition = nodes.DISABLED
+	} else if *drainingPtr {
 		//TODO: Watch the interface on the right process/container to determine
 		//      when connections have dropped, and set to DISABLED
 		condition = nodes.DRAINING
