@@ -184,8 +184,6 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	log.Printf("Enabling %v:%v", nodeAddress, nodePort)
-
 	/**
 	 * Retrive Load Balancer ID
 	 */
