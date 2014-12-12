@@ -107,7 +107,7 @@ func getIP(ipPtr *string) (string, error) {
 	// Find eth0
 	eth0, err := net.InterfaceByName("eth0")
 	if err != nil {
-		return "", fmt.Errorf("Trouble finding eth0: %v", err)
+		return "", fmt.Errorf("trouble finding eth0: %v", err)
 	}
 
 	addrs, err = eth0.Addrs()
@@ -122,7 +122,7 @@ func getIP(ipPtr *string) (string, error) {
 		fmt.Println(ip)
 	}
 
-	return "", errors.New("Unable to determine an IP for load balancing")
+	return "", errors.New("unable to determine an IP for load balancing")
 
 }
 
