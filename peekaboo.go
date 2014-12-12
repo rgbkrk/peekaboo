@@ -152,7 +152,7 @@ func main() {
 	region := os.Getenv("OS_REGION_NAME")
 
 	if username == "" || APIKey == "" || region == "" {
-		fmt.Fatalf("One or more of $OS_USERNAME, $OS_PASSWORD, and $OS_REGION_NAME not set")
+		log.Fatalf("One or more of $OS_USERNAME, $OS_PASSWORD, and $OS_REGION_NAME not set")
 	}
 
 	// These get converted into integers later
