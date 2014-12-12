@@ -52,6 +52,40 @@ $ docker run --net=host \
 2014/12/12 06:37:23 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
 ```
 
+### Configuration
+
+#### Load Balancer ID
+
+Set environment variable `LOAD_BALANCER_ID` to the ID of the Load Balancer you wish to connect servers to. The load balancer must exist ahead of time.
+
+The ID can be found on the details page for the load balancer in your Rackspace control panel.
+
+#### Rackspace credentials (and region)
+
+We use the standard OpenStack environment variable names here:
+
+`OS_USERNAME` - User name to log in to the Rackspace control panel
+`OS_PASSWORD` - [API Key for Rackspace](http://www.rackspace.com/knowledge_center/article/view-and-reset-your-api-key)
+`OS_REGION_NAME` - Any one of IAD, DFW, HKG, SYD, ORD (haven't tested LON)
+
+#### IP Address
+
+Peekaboo will try to determine what IP to use with the load balancer. It does this by looking for a 10.x.x.x IPv4 address on the host then by looking for an `eth0` interface.
+
+If you need control you can set the `-ip` flag (e.g. `-ip 192.168.1.3` or define one of two environment variables (adopted from [coreos-cluster](https://github.com/kenperkins/coreos-cluster)): `RAX_SERVICENET_IPV4` or `RAX_PUBLICNET_IPV4`. 
+
+Precedence order:
+
+* `-ip` flag
+* `$RAX_SERVICENET_IPV4`
+* `$RAX_PUBLICNET_IPV4`
+* Gleaning a 10 dot out of the network interfaces (*most likely*)
+* IPv4 address from `eth0` (last ditch option)
+
+#### Application port
+
+Set `$APP_PORT` or just let 80 be the default. Your choice.
+
 ### ROADMAP
 
 * [X] Enable node on load balancer
@@ -60,6 +94,7 @@ $ docker run --net=host \
 * [ ] Create basic fleet service file example
 * [X] Set up Docker build that builds straight from source
 * [ ] Set up Docker build that packages *just* the binary build
+* [ ] Determine when the node has terminated connections after DRAINING, set to DISABLED and allow follow on processes to continue (CoreOS update, fleet movement)
 
 ### Hacking
 
