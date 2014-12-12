@@ -127,7 +127,10 @@ func getIP(ipPtr *string) (string, error) {
 		cidr := addr.String()
 		ip := strings.Split(cidr, "/")[0]
 
-		fmt.Println(ip)
+		// Pick out IPv4
+		if strings.ContainsRune(ip, '.') {
+			return ip, err
+		}
 	}
 
 	return "", errors.New("unable to determine an IP for load balancing")
