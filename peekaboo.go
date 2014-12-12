@@ -175,6 +175,9 @@ func main() {
 	/**
 	 * Retrive Load Balancer ID
 	 */
+	if strLoadBalancerID == "" {
+		log.Fatalln("$LOAD_BALANCER_ID must be set")
+	}
 	loadBalancerID, err := strconv.Atoi(strLoadBalancerID)
 	if err != nil {
 		log.Fatalf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
