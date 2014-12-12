@@ -3,7 +3,7 @@ peekaboo
 
 ![Peek a boo my little gopher](https://cloud.githubusercontent.com/assets/836375/5406939/db93466c-8180-11e4-9424-ec85a04db052.gif)
 
-GOAL: Automagically connect and disconnect services to Rackspace load balancers over Service Net.
+Goal: Automagically connect and disconnect applications to Rackspace load balancers as they come online or are taken offline
 
 ## Example run
 
