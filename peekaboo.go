@@ -1,3 +1,6 @@
+// peekaboo registers the current machine (or provided IP) to a Rackspace load
+// balancer, enabling (or disabling) itself.
+
 package main
 
 import (
@@ -17,6 +20,8 @@ import (
 	"github.com/rackspace/gophercloud/rackspace/lb/v1/nodes"
 )
 
+// waitForReady waits for the load balancer with id loadBalancerID to become
+// ACTIVE. It times out after 60 seconds and streamrolls on ahead.
 func waitForReady(client *gophercloud.ServiceClient, loadBalancerID int) {
 
 	// Ensure the load balancer is ready
@@ -34,8 +39,10 @@ func waitForReady(client *gophercloud.ServiceClient, loadBalancerID int) {
 		// It has reached ACTIVE
 		return true, nil
 	})
+
 }
 
+// findNodeByIPPort gets a load balancer node by IP and Port
 func findNodeByIPPort(
 	client *gophercloud.ServiceClient,
 	loadBalancerID int,
@@ -68,14 +75,15 @@ func findNodeByIPPort(
 	return found
 }
 
+// getIP tries to best guess what IP to work with
+//
+// Precedence for IP is determined by
+//  - ipPtr being non-nil (peekaboo's -ip flag)
+//  - Service Net Environment variable $RAX_SERVICENET_IPV4
+//  - Public Net Environment variable $RAX_PUBLICNET_IPV4
+//  - Gleaning a 10 dot out of the network interfaces (likely service net)
+//  - eth0
 func getIP(ipPtr *string) (string, error) {
-
-	// IP overriding order will be:
-	//  - The -ip flag takes primary precedence
-	//  - Service Net Environment variable
-	//  - Public Net Environment variable
-	//  - Gleaning a 10 dot out of the network interfaces (typically eth1)
-	//  - eth0
 
 	serviceNetIPv4 := os.Getenv("RAX_SERVICENET_IPV4")
 	publicNetIPv4 := os.Getenv("RAX_PUBLICNET_IPV4")
