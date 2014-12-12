@@ -184,8 +184,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	log.Printf("Determined IP: %v", nodeAddress)
-	log.Printf("Determined Port: %v", nodePort)
+	log.Printf("Enabling %v:%v", nodeAddress, nodePort)
 
 	/**
 	 * Retrive Load Balancer ID
@@ -215,8 +214,6 @@ func main() {
 		log.Fatalf("Creating load balancer client in %v failed: %v\n", region, err)
 	}
 
-	log.Println("Client ready")
-
 	waitForReady(client, loadBalancerID)
 
 	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
@@ -228,10 +225,13 @@ func main() {
 		condition = nodes.DRAINING
 	}
 
-	log.Printf("Telling %v on port %v to be %v\n", nodeAddress, nodePort, condition)
+	log.Printf("Setting %v:%v to be %v on load balancer %v\n",
+		nodeAddress, nodePort,
+		condition,
+		loadBalancerID)
 
 	if nodePtr != nil {
-		log.Printf("Found existing node %v", *nodePtr)
+		log.Printf("Updating existing node %v", *nodePtr)
 
 		opts := nodes.UpdateOpts{
 			Condition: condition,
@@ -270,6 +270,6 @@ func main() {
 		log.Panicln(err)
 	}
 
-	log.Printf("Updated state for node: %v\n", *nodePtr)
+	log.Printf("Final node state: %v\n", *nodePtr)
 
 }
