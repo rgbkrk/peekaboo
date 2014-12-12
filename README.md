@@ -7,13 +7,31 @@ Enables or disables a server on a load balancer on run.
 
 Designed to be bound to another service using systemd.
 
+## Example run
+
+```console
+docker run --net=host \
+           -e LOAD_BALANCER_ID=8675309 \
+           -e OS_USERNAME=rgbkrk \
+           -e OS_REGION_NAME=IAD \
+           -e OS_PASSWORD=deadbeef13617 \
+           rgbkrk/peekaboo
+2014/12/12 06:09:53 $APP_PORT not set, defaulting to 80
+2014/12/12 06:09:53 Determined IP: 10.184.12.147
+2014/12/12 06:09:53 Determined Port: 80
+2014/12/12 06:09:53 Client ready
+2014/12/12 06:09:55 Telling 10.184.12.147 on port 80 to be ENABLED
+2014/12/12 06:09:55 Creating new node
+2014/12/12 06:09:58 Updated state for node: {10.184.12.147 256049 80 ONLINE ENABLED 1 PRIMARY}
+```
+
 ### ROADMAP
 
 * [X] Enable node on load balancer
 * [X] Drain node off load balancer conditionally
 * [X] Get IP Address from an interface
 * [ ] Create basic fleet service file example
-* [ ] Set up Docker build that builds straight from source
+* [X] Set up Docker build that builds straight from source
 * [ ] Set up Docker build that packages *just* the binary build
 
 ### Hacking
