@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -49,7 +51,7 @@ func findNodeByIPPort(
 	pager.EachPage(func(page pagination.Page) (bool, error) {
 		lbNodes, err := nodes.ExtractNodes(page)
 		if err != nil {
-			log.Panicf("Error during paging load balancer: %v", err)
+			log.Fatalf("Error during paging load balancer: %v", err)
 		}
 
 		for _, trialNode := range lbNodes {
@@ -102,10 +104,25 @@ func getIP(ipPtr *string) (string, error) {
 		}
 	}
 
-	// TODO: Find eth0
-	// TODO: Return error at end
+	// Find eth0
+	eth0, err := net.InterfaceByName("eth0")
+	if err != nil {
+		return "", fmt.Errorf("Trouble finding eth0: %v", err)
+	}
 
-	return "", nil
+	addrs, err = eth0.Addrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		cidr := addr.String()
+		ip := strings.Split(cidr, "/")[0]
+
+		fmt.Println(ip)
+	}
+
+	return "", errors.New("Unable to determine an IP for load balancing")
 
 }
 
@@ -120,17 +137,19 @@ func main() {
 	region := os.Getenv("OS_REGION_NAME")
 
 	loadBalancerID, err := strconv.Atoi(os.Getenv("LOAD_BALANCER_ID"))
-
 	if err != nil {
-		log.Panicln(err)
+		log.Fatalf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
+	}
+
+	nodePort, err := strconv.Atoi(os.Getenv("APP_PORT"))
+	if err != nil {
+		log.Printf("Err: %v\n", err)
+		log.Fatalf("$APP_PORT not an integer: %v\n", loadBalancerID)
 	}
 
 	nodeAddress, err := getIP(ipPtr)
-
-	nodePort := 80
-
 	if err != nil {
-		log.Panicf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
+		log.Fatalln(err)
 	}
 
 	provider, err := rackspace.AuthenticatedClient(gophercloud.AuthOptions{
@@ -139,7 +158,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Panicf("%v\n", err)
+		log.Fatalf("%v\n", err)
 	}
 
 	client, err := rackspace.NewLBV1(provider, gophercloud.EndpointOpts{
@@ -147,7 +166,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Panicf("%v\n", err)
+		log.Fatalf("%v\n", err)
 	}
 
 	log.Println("Client ready")
@@ -158,8 +177,8 @@ func main() {
 
 	condition := nodes.ENABLED
 	if *disabledPtr {
-		//TODO: Watch the interface on the watched container to determine when connections
-		//      have dropped, and set to DISABLED
+		//TODO: Watch the interface on the right process/container to determine
+		//      when connections have dropped, and set to DISABLED
 		condition = nodes.DRAINING
 	}
 
