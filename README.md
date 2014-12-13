@@ -1,6 +1,8 @@
 peekaboo
 ========
 
+Rackspace load balancing toggler for your host's services.
+
 ![Peek a boo my little gopher](https://cloud.githubusercontent.com/assets/836375/5406939/db93466c-8180-11e4-9424-ec85a04db052.gif)
 
 Goal: Automagically connect and disconnect applications to Rackspace load balancers as they come online or are taken offline
