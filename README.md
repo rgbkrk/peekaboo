@@ -66,9 +66,9 @@ The ID can be found on the details page for the load balancer in your Rackspace 
 
 We use the standard OpenStack environment variable names here:
 
-`OS_USERNAME` - User name to log in to the Rackspace control panel
-`OS_PASSWORD` - [API Key for Rackspace](http://www.rackspace.com/knowledge_center/article/view-and-reset-your-api-key)
-`OS_REGION_NAME` - Any one of IAD, DFW, HKG, SYD, ORD (haven't tested LON)
+ * `OS_USERNAME` - User name to log in to the Rackspace control panel
+ * `OS_PASSWORD` - [API Key for Rackspace](http://www.rackspace.com/knowledge_center/article/view-and-reset-your-api-key)
+ * `OS_REGION_NAME` - Any one of IAD, DFW, HKG, SYD, ORD (haven't tested LON)
 
 #### IP Address
 
