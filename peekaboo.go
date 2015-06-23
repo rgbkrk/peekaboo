@@ -150,9 +150,9 @@ func main() {
 	//        - locating the eth0 interface
 	//        - providing an ip as a flag is fine too and will take precedence
 	ipPtr := flag.String("ip", "", "IP address to register/deregister on the load balancer")
-	flag.Parse()
-
 	timeout := flag.Int("timeout", 60, "Seconds to wait for the load balancer to become available")
+
+	flag.Parse()
 
 	username := os.Getenv("OS_USERNAME")
 	APIKey := os.Getenv("OS_PASSWORD")
