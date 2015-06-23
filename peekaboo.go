@@ -142,6 +142,7 @@ func main() {
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
 	drainingPtr := flag.Bool("drain", false, "Drain the node from the load balancer")
+	deletePtr := flag.Bool("delete", false, "Delete the node from the load balancer")
 
 	//NOTE: peekaboo allows setting the IP by using
 	//        - environment variables: RAX_SERVICENET_IPV4 or RAX_PUBLICNET_IPV4
@@ -217,60 +218,80 @@ func main() {
 
 	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
 
-	condition := nodes.ENABLED
-	if *disabledPtr {
-		condition = nodes.DISABLED
-	} else if *drainingPtr {
-		//TODO: Watch the interface on the right process/container to determine
-		//      when connections have dropped, and set to DISABLED
-		condition = nodes.DRAINING
-	}
+	if !*deletePtr {
+		// Transition an existing node to the desired state. Create a new node if one doesn't exist
+		// already.
 
-	log.Printf("Setting %v:%v to be %v on load balancer %v\n",
-		nodeAddress, nodePort,
-		condition,
-		loadBalancerID)
-
-	if nodePtr != nil {
-		log.Printf("Updating existing node %v", *nodePtr)
-
-		opts := nodes.UpdateOpts{
-			Condition: condition,
+		condition := nodes.ENABLED
+		if *disabledPtr {
+			condition = nodes.DISABLED
+		} else if *drainingPtr {
+			//TODO: Watch the interface on the right process/container to determine
+			//      when connections have dropped, and set to DISABLED
+			condition = nodes.DRAINING
 		}
 
-		updateResult := nodes.Update(client, loadBalancerID, nodePtr.ID, opts)
-		err = updateResult.ExtractErr()
-		if err != nil {
-			log.Panicf("Updating node failed: %v", err)
-		}
+		log.Printf("Setting %v:%v to be %v on load balancer %v\n",
+			nodeAddress, nodePort,
+			condition,
+			loadBalancerID)
 
-	} else {
-		log.Printf("Creating new node")
-		opts := nodes.CreateOpts{
-			nodes.CreateOpt{
-				Address:   nodeAddress,
-				Port:      nodePort,
+		if nodePtr != nil {
+			log.Printf("Updating existing node %v", *nodePtr)
+
+			opts := nodes.UpdateOpts{
 				Condition: condition,
-			},
+			}
+
+			updateResult := nodes.Update(client, loadBalancerID, nodePtr.ID, opts)
+			err = updateResult.ExtractErr()
+			if err != nil {
+				log.Panicf("Updating node failed: %v", err)
+			}
+
+		} else {
+			log.Printf("Creating new node")
+			opts := nodes.CreateOpts{
+				nodes.CreateOpt{
+					Address:   nodeAddress,
+					Port:      nodePort,
+					Condition: condition,
+				},
+			}
+
+			nodePager := nodes.Create(client, loadBalancerID, opts)
+			nodeList, err := nodePager.ExtractNodes()
+			if err != nil || len(nodeList) != 1 {
+				log.Panicf("Something went terribly wrong on node creation: %v\n", nodeList)
+			}
+			nodePtr = &nodeList[0]
 		}
 
-		nodePager := nodes.Create(client, loadBalancerID, opts)
-		nodeList, err := nodePager.ExtractNodes()
-		if err != nil || len(nodeList) != 1 {
-			log.Panicf("Something went terribly wrong on node creation: %v\n", nodeList)
+		waitForReady(client, loadBalancerID)
+
+		// After update, get the version of the node Rackspace has
+		result := nodes.Get(client, loadBalancerID, nodePtr.ID)
+		nodePtr, err = result.Extract()
+		if err != nil {
+			log.Panicln(err)
 		}
-		nodePtr = &nodeList[0]
+
+		log.Printf("Final node state: %v\n", *nodePtr)
+	} else {
+		// Delete an existing node from the balancer. Do nothing if no node exists.
+		if nodePtr != nil {
+			log.Printf("Deleting existing node %v", *nodePtr)
+
+			err := nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
+			if err != nil {
+				log.Fatalf("Unable to delete node %d: %v", nodePtr.ID, err)
+			}
+
+			waitForReady(client, loadBalancerID)
+			log.Println("Final node state: Deleted")
+		} else {
+			log.Println("Node is already gone. Hooray?")
+		}
 	}
-
-	waitForReady(client, loadBalancerID)
-
-	// After update, get the version of the node Rackspace has
-	result := nodes.Get(client, loadBalancerID, nodePtr.ID)
-	nodePtr, err = result.Extract()
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	log.Printf("Final node state: %v\n", *nodePtr)
 
 }
