@@ -5,7 +5,7 @@ Rackspace load balancing toggler for your host's services.
 
 ![Peek a boo my little gopher](https://cloud.githubusercontent.com/assets/836375/5406939/db93466c-8180-11e4-9424-ec85a04db052.gif)
 
-Goal: Automagically connect and disconnect applications to Rackspace load balancers as they come online or are taken offline
+Goal: Automagically connect and disconnect applications to Rackspace load balancers as they come online or are taken offline.
 
 ## Example run
 
@@ -24,7 +24,7 @@ $ docker run --net=host \
 2014/12/12 06:36:53 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
 ```
 
-Awesome, this host is now connected to the load balancer. Now disable it!
+Awesome, this host is now connected to the load balancer. Now drain connections from it!
 
 ```console
 $ docker run --net=host \
@@ -32,14 +32,14 @@ $ docker run --net=host \
            -e OS_USERNAME=rgbkrk \
            -e OS_REGION_NAME=IAD \
            -e OS_PASSWORD=deadbeef13617 \
-           rgbkrk/peekaboo -disable
+           rgbkrk/peekaboo -drain
 2014/12/12 06:37:01 $APP_PORT not set, defaulting to 80
 2014/12/12 06:37:02 Setting 10.184.12.147:80 to be DRAINING on load balancer 64965
 2014/12/12 06:37:02 Updating existing node {10.184.12.147 256073 80 ONLINE ENABLED 0 PRIMARY}
 2014/12/12 06:37:06 Final node state: {10.184.12.147 256073 80 ONLINE DRAINING 1 PRIMARY}
 ```
 
-Back online for good measure
+Back online for good measure:
 
 ```console
 $ docker run --net=host \
@@ -54,6 +54,19 @@ $ docker run --net=host \
 2014/12/12 06:37:23 Final node state: {10.184.12.147 256073 80 ONLINE ENABLED 1 PRIMARY}
 ```
 
+Now kill it entirely:
+
+```console
+$ docker run --net=host \
+           -e LOAD_BALANCER_ID=8675309 \
+           -e OS_USERNAME=rgbkrk \
+           -e OS_REGION_NAME=IAD \
+           -e OS_PASSWORD=deadbeaf13617 \
+           rgbkrk/peekaboo -delete
+2015/06/23 13:03:48 Deleting existing node {10.209.136.41 938559 80 ONLINE DRAINING 0 PRIMARY}
+2015/06/23 13:03:48 Final node state: Deleted
+```
+
 ### Configuration
 
 #### Load Balancer ID
@@ -62,7 +75,7 @@ Set environment variable `LOAD_BALANCER_ID` to the ID of the Load Balancer you w
 
 The ID can be found on the details page for the load balancer in your Rackspace control panel.
 
-#### Rackspace credentials (and region)
+#### Rackspace Credentials and Region
 
 We use the standard OpenStack environment variable names here:
 
@@ -74,7 +87,7 @@ We use the standard OpenStack environment variable names here:
 
 Peekaboo will try to determine what IP to use with the load balancer. It does this by looking for a 10.x.x.x IPv4 address on the host then by looking for an `eth0` interface.
 
-If you need control you can set the `-ip` flag (e.g. `-ip 192.168.1.3` or define one of two environment variables (adopted from [coreos-cluster](https://github.com/kenperkins/coreos-cluster)): `RAX_SERVICENET_IPV4` or `RAX_PUBLICNET_IPV4`. 
+If you need control you can set the `-ip` flag (e.g. `-ip 192.168.1.3` or define one of two environment variables (adopted from [coreos-cluster](https://github.com/kenperkins/coreos-cluster)): `RAX_SERVICENET_IPV4` or `RAX_PUBLICNET_IPV4`.
 
 Precedence order:
 
@@ -131,5 +144,3 @@ drwxrwxr-x 8 rgbkrk rgbkrk 4.0K Dec 12 05:30 .git
 -rw-rw-r-- 1 rgbkrk rgbkrk 5.8K Dec 12 05:25 peekaboo.go
 -rw-rw-r-- 1 rgbkrk rgbkrk 1.6K Dec 12 05:30 README.md
 ```
-
-
