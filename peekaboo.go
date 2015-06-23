@@ -266,27 +266,32 @@ func main() {
 			}
 			nodePtr = &nodeList[0]
 		}
+
+		waitForReady(client, loadBalancerID)
+
+		// After update, get the version of the node Rackspace has
+		result := nodes.Get(client, loadBalancerID, nodePtr.ID)
+		nodePtr, err = result.Extract()
+		if err != nil {
+			log.Panicln(err)
+		}
+
+		log.Printf("Final node state: %v\n", *nodePtr)
 	} else {
 		// Delete an existing node from the balancer. Do nothing if no node exists.
 		if nodePtr != nil {
+			log.Printf("Deleting existing node %v", *nodePtr)
+
 			err := nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
 			if err != nil {
 				log.Fatalf("Unable to delete node %d: %v", nodePtr.ID, err)
 			}
+
+			waitForReady(client, loadBalancerID)
+			log.Println("Final node state: Deleted")
 		} else {
 			log.Println("Node is already gone. Hooray?")
 		}
 	}
-
-	waitForReady(client, loadBalancerID)
-
-	// After update, get the version of the node Rackspace has
-	result := nodes.Get(client, loadBalancerID, nodePtr.ID)
-	nodePtr, err = result.Extract()
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	log.Printf("Final node state: %v\n", *nodePtr)
 
 }
