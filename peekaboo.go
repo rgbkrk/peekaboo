@@ -22,10 +22,10 @@ import (
 
 // waitForReady waits for the load balancer with id loadBalancerID to become
 // ACTIVE. It times out after 60 seconds and streamrolls on ahead.
-func waitForReady(client *gophercloud.ServiceClient, loadBalancerID int) {
+func waitForReady(client *gophercloud.ServiceClient, loadBalancerID int, timeout int) {
 
 	// Ensure the load balancer is ready
-	gophercloud.WaitFor(60, func() (bool, error) {
+	gophercloud.WaitFor(timeout, func() (bool, error) {
 		lb, err := lbs.Get(client, loadBalancerID).Extract()
 		if err != nil {
 			return false, err
@@ -152,6 +152,8 @@ func main() {
 	ipPtr := flag.String("ip", "", "IP address to register/deregister on the load balancer")
 	flag.Parse()
 
+	timeout := flag.Int("timeout", 60, "Seconds to wait for the load balancer to become available")
+
 	username := os.Getenv("OS_USERNAME")
 	APIKey := os.Getenv("OS_PASSWORD")
 	region := os.Getenv("OS_REGION_NAME")
@@ -214,7 +216,7 @@ func main() {
 		log.Fatalf("Creating load balancer client in %v failed: %v\n", region, err)
 	}
 
-	waitForReady(client, loadBalancerID)
+	waitForReady(client, loadBalancerID, *timeout)
 
 	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
 
@@ -269,7 +271,7 @@ func main() {
 			nodePtr = &nodeList[0]
 		}
 
-		waitForReady(client, loadBalancerID)
+		waitForReady(client, loadBalancerID, *timeout)
 
 		// After update, get the version of the node Rackspace has
 		result := nodes.Get(client, loadBalancerID, nodePtr.ID)
@@ -289,7 +291,7 @@ func main() {
 				log.Fatalf("Unable to delete node %d: %v", nodePtr.ID, err)
 			}
 
-			waitForReady(client, loadBalancerID)
+			waitForReady(client, loadBalancerID, *timeout)
 			log.Println("Final node state: Deleted")
 		} else {
 			log.Println("Node is already gone. Hooray?")
