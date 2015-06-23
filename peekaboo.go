@@ -259,10 +259,12 @@ func main() {
 				},
 			}
 
-			nodePager := nodes.Create(client, loadBalancerID, opts)
-			nodeList, err := nodePager.ExtractNodes()
-			if err != nil || len(nodeList) != 1 {
-				log.Panicf("Something went terribly wrong on node creation: %v\n", nodeList)
+			nodeList, err := nodes.Create(client, loadBalancerID, opts).ExtractNodes()
+			if err != nil {
+				log.Fatalf("Error enumerating created nodes: %v", err)
+			}
+			if len(nodeList) != 1 {
+				log.Panicf("Something went terribly wrong on node creation: %#v\n", nodeList)
 			}
 			nodePtr = &nodeList[0]
 		}
