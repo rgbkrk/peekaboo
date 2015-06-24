@@ -8,10 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/pagination"
@@ -19,6 +21,37 @@ import (
 	"github.com/rackspace/gophercloud/rackspace/lb/v1/lbs"
 	"github.com/rackspace/gophercloud/rackspace/lb/v1/nodes"
 )
+
+// backoff executes a closure that performs a CLB operation and returns its error condition. If
+// a 422 (immutable entity) error is returned, wait timeout seconds perturbed by a small random
+// amount and try again. If a non-422 error is returned, return that error immediately. If the
+// operation is successful, return nil.
+func backoff(timeout int, action func() error) error {
+	err := action()
+	for err != nil {
+		err = action()
+
+		if casted, ok := err.(*gophercloud.UnexpectedResponseCodeError); ok {
+			if casted.Actual == 422 {
+				// Immutable load balancer.
+				// Sleep and retry.
+				base := time.Duration(timeout) * time.Second
+				delta := time.Duration(-1000+rand.Intn(2000)) * time.Millisecond
+				d := base + delta
+
+				log.Printf("Load balancer is immutable. Sleeping for %s.", d)
+				time.Sleep(d)
+			} else {
+				// Non-422 error.
+				return err
+			}
+		} else {
+			// Non-HTTP error
+			return err
+		}
+	}
+	return nil
+}
 
 // waitForReady waits for the load balancer with id loadBalancerID to become
 // ACTIVE. It times out after 60 seconds and streamrolls on ahead.
@@ -138,6 +171,7 @@ func getIP(ipPtr *string) (string, error) {
 }
 
 func main() {
+	rand.Seed(time.Now().UTC().UnixNano())
 	var err error
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
