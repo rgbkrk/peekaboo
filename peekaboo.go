@@ -250,8 +250,6 @@ func main() {
 		log.Fatalf("Creating load balancer client in %v failed: %v\n", region, err)
 	}
 
-	waitForReady(client, loadBalancerID, *timeout)
-
 	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
 
 	if !*deletePtr {
@@ -279,10 +277,11 @@ func main() {
 				Condition: condition,
 			}
 
-			updateResult := nodes.Update(client, loadBalancerID, nodePtr.ID, opts)
-			err = updateResult.ExtractErr()
+			err = backoff(*timeout, func() error {
+				return nodes.Update(client, loadBalancerID, nodePtr.ID, opts).ExtractErr()
+			})
 			if err != nil {
-				log.Panicf("Updating node failed: %v", err)
+				log.Fatalf("Unable to update node: %v", err)
 			}
 
 		} else {
@@ -295,23 +294,27 @@ func main() {
 				},
 			}
 
-			nodeList, err := nodes.Create(client, loadBalancerID, opts).ExtractNodes()
+			var created []nodes.Node
+			err = backoff(*timeout, func() error {
+				created, err = nodes.Create(client, loadBalancerID, opts).ExtractNodes()
+				return err
+			})
+
 			if err != nil {
 				log.Fatalf("Error enumerating created nodes: %v", err)
 			}
-			if len(nodeList) != 1 {
-				log.Panicf("Something went terribly wrong on node creation: %#v\n", nodeList)
+			if len(created) != 1 {
+				log.Fatalf("Something went terribly wrong on node creation: %#v\n", created)
 			}
-			nodePtr = &nodeList[0]
+			nodePtr = &created[0]
 		}
 
 		waitForReady(client, loadBalancerID, *timeout)
 
-		// After update, get the version of the node Rackspace has
-		result := nodes.Get(client, loadBalancerID, nodePtr.ID)
-		nodePtr, err = result.Extract()
+		// After the update completes, get the final version of the node.
+		nodePtr, err := nodes.Get(client, loadBalancerID, nodePtr.ID).Extract()
 		if err != nil {
-			log.Panicln(err)
+			log.Fatalf("Update to retrieve final node state: %v", err)
 		}
 
 		log.Printf("Final node state: %v\n", *nodePtr)
@@ -320,7 +323,9 @@ func main() {
 		if nodePtr != nil {
 			log.Printf("Deleting existing node %v", *nodePtr)
 
-			err := nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
+			err = backoff(*timeout, func() error {
+				return nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
+			})
 			if err != nil {
 				log.Fatalf("Unable to delete node %d: %v", nodePtr.ID, err)
 			}
