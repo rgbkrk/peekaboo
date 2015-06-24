@@ -28,15 +28,13 @@ import (
 func backoff(interval int, action func() error) error {
 	err := action()
 	for err != nil {
-		err = action()
-
 		if casted, ok := err.(*gophercloud.UnexpectedResponseCodeError); ok {
 			var waitReason string
 			switch casted.Actual {
 			case 422:
-				waitReason = "Load balancer is immutable."
+				waitReason = "Load balancer is immutable"
 			case 413:
-				waitReason = "Rate limit exceeded."
+				waitReason = "Rate limit exceeded"
 			default:
 				// Non-422 error.
 				return err
@@ -53,6 +51,8 @@ func backoff(interval int, action func() error) error {
 			// Non-HTTP error
 			return err
 		}
+
+		err = action()
 	}
 	return nil
 }
