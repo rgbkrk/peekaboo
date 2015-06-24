@@ -31,19 +31,24 @@ func backoff(interval int, action func() error) error {
 		err = action()
 
 		if casted, ok := err.(*gophercloud.UnexpectedResponseCodeError); ok {
-			if casted.Actual == 422 {
-				// Immutable load balancer.
-				// Sleep and retry.
-				base := time.Duration(interval) * time.Second
-				delta := time.Duration(-1000+rand.Intn(2000)) * time.Millisecond
-				d := base + delta
-
-				log.Printf("Load balancer is immutable. Sleeping for %s", d)
-				time.Sleep(d)
-			} else {
+			var waitReason string
+			switch casted.Actual {
+			case 422:
+				waitReason = "Load balancer is immutable."
+			case 413:
+				waitReason = "Rate limit exceeded."
+			default:
 				// Non-422 error.
 				return err
 			}
+
+			// Sleep and retry.
+			base := time.Duration(interval) * time.Second
+			delta := time.Duration(-1000+rand.Intn(2000)) * time.Millisecond
+			d := base + delta
+
+			log.Printf("%s. Sleeping for %s", waitReason, d)
+			time.Sleep(d)
 		} else {
 			// Non-HTTP error
 			return err
