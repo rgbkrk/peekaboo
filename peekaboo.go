@@ -48,8 +48,7 @@ func backoff(interval int, action func() error) error {
 			log.Printf("%s. Sleeping for %s", waitReason, d)
 			time.Sleep(d)
 		} else {
-			// Non-HTTP error
-			return err
+			log.Printf("Non-HTTP error: %v", err)
 		}
 
 		err = action()
@@ -204,6 +203,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Trouble authenticating to Rackspace: %v", err)
 	}
+	provider.HTTPClient.Timeout = 30 * time.Second
 
 	client, err := rackspace.NewLBV1(provider, gophercloud.EndpointOpts{
 		Region: region,
