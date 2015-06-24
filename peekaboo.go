@@ -23,10 +23,10 @@ import (
 )
 
 // backoff executes a closure that performs a CLB operation and returns its error condition. If
-// a 422 (immutable entity) error is returned, wait timeout seconds perturbed by a small random
+// a 422 (immutable entity) error is returned, wait interval seconds perturbed by a small random
 // amount and try again. If a non-422 error is returned, return that error immediately. If the
 // operation is successful, return nil.
-func backoff(timeout int, action func() error) error {
+func backoff(interval int, action func() error) error {
 	err := action()
 	for err != nil {
 		err = action()
@@ -35,7 +35,7 @@ func backoff(timeout int, action func() error) error {
 			if casted.Actual == 422 {
 				// Immutable load balancer.
 				// Sleep and retry.
-				base := time.Duration(timeout) * time.Second
+				base := time.Duration(interval) * time.Second
 				delta := time.Duration(-1000+rand.Intn(2000)) * time.Millisecond
 				d := base + delta
 
@@ -173,6 +173,7 @@ func main() {
 	drainingPtr := flag.Bool("drain", false, "Drain the node from the load balancer")
 	deletePtr := flag.Bool("delete", false, "Delete the node from the load balancer")
 	ipPtr := flag.String("ip", "", "IP address to register/deregister on the load balancer")
+	interval := flag.Int("interval", 5, "Seconds to wait between each modification attempt")
 	timeout := flag.Int("timeout", 60, "Seconds to wait for the load balancer to become available")
 
 	flag.Parse()
@@ -253,7 +254,7 @@ func main() {
 				Condition: condition,
 			}
 
-			err = backoff(*timeout, func() error {
+			err = backoff(*interval, func() error {
 				return nodes.Update(client, loadBalancerID, nodePtr.ID, opts).ExtractErr()
 			})
 			if err != nil {
@@ -271,7 +272,7 @@ func main() {
 			}
 
 			var created []nodes.Node
-			err = backoff(*timeout, func() error {
+			err = backoff(*interval, func() error {
 				created, err = nodes.Create(client, loadBalancerID, opts).ExtractNodes()
 				return err
 			})
@@ -298,7 +299,7 @@ func main() {
 		if nodePtr != nil {
 			log.Printf("Deleting existing node %v", *nodePtr)
 
-			err = backoff(*timeout, func() error {
+			err = backoff(*interval, func() error {
 				return nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
 			})
 			if err != nil {
