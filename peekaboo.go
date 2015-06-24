@@ -8,41 +8,55 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/pagination"
 	"github.com/rackspace/gophercloud/rackspace"
-	"github.com/rackspace/gophercloud/rackspace/lb/v1/lbs"
 	"github.com/rackspace/gophercloud/rackspace/lb/v1/nodes"
 )
 
-// waitForReady waits for the load balancer with id loadBalancerID to become
-// ACTIVE. It times out after 60 seconds and streamrolls on ahead.
-func waitForReady(client *gophercloud.ServiceClient, loadBalancerID int, timeout int) {
+// backoff executes a closure that performs a CLB operation and returns its error condition. If
+// a 422 (immutable entity) error is returned, wait interval seconds perturbed by a small random
+// amount and try again. If a non-422 error is returned, return that error immediately. If the
+// operation is successful, return nil.
+func backoff(interval int, action func() error) error {
+	err := action()
+	for err != nil {
+		if casted, ok := err.(*gophercloud.UnexpectedResponseCodeError); ok {
+			var waitReason string
+			switch casted.Actual {
+			case 422:
+				waitReason = "Load balancer is immutable"
+			case 413:
+				waitReason = "Rate limit exceeded"
+			default:
+				// Non-422 error.
+				return err
+			}
 
-	// Ensure the load balancer is ready
-	gophercloud.WaitFor(timeout, func() (bool, error) {
-		lb, err := lbs.Get(client, loadBalancerID).Extract()
-		if err != nil {
-			return false, err
+			// Sleep and retry.
+			base := time.Duration(interval) * time.Second
+			delta := time.Duration(-1000+rand.Intn(2000)) * time.Millisecond
+			d := base + delta
+
+			log.Printf("%s. Sleeping for %s", waitReason, d)
+			time.Sleep(d)
+		} else {
+			log.Printf("Non-HTTP error: %v", err)
 		}
 
-		if lb.Status != lbs.ACTIVE {
-			// It has not yet reached ACTIVE
-			return false, nil
-		}
-
-		// It has reached ACTIVE
-		return true, nil
-	})
-
+		err = action()
+	}
+	return nil
 }
 
-// findNodeByIPPort gets a load balancer node by IP and Port
+// findNodeByIPPort locates a load balancer node by IP and port.
 func findNodeByIPPort(
 	client *gophercloud.ServiceClient,
 	loadBalancerID int,
@@ -53,12 +67,10 @@ func findNodeByIPPort(
 	// nil until found
 	var found *nodes.Node
 
-	pager := nodes.List(client, loadBalancerID, nil)
-
-	pager.EachPage(func(page pagination.Page) (bool, error) {
+	nodes.List(client, loadBalancerID, nil).EachPage(func(page pagination.Page) (bool, error) {
 		lbNodes, err := nodes.ExtractNodes(page)
 		if err != nil {
-			log.Fatalf("Error during paging load balancer: %v", err)
+			log.Fatalf("Error while paging load balancer nodes: %v", err)
 		}
 
 		for _, trialNode := range lbNodes {
@@ -75,16 +87,15 @@ func findNodeByIPPort(
 	return found
 }
 
-// getIP tries to best guess what IP to work with
+// getIP attempts to determine which IP to work with.
 //
-// Precedence for IP is determined by
-//  - ipPtr being non-nil (peekaboo's -ip flag)
-//  - Service Net Environment variable $RAX_SERVICENET_IPV4
-//  - Public Net Environment variable $RAX_PUBLICNET_IPV4
-//  - Gleaning a 10 dot out of the network interfaces (likely service net)
-//  - eth0
+// The IP address is determined by, in order:
+// * peekaboo's -ip flag
+// * ServiceNet environment variable: $RAX_SERVICENET_IPV4
+// * PublicNet environment variable: $RAX_PUBLICNET_IPV4
+// * Locating a 10 dot address from the network interfaces, likely ServiceNet.
+// * eth0
 func getIP(ipPtr *string) (string, error) {
-
 	serviceNetIPv4 := os.Getenv("RAX_SERVICENET_IPV4")
 	publicNetIPv4 := os.Getenv("RAX_PUBLICNET_IPV4")
 
@@ -98,7 +109,6 @@ func getIP(ipPtr *string) (string, error) {
 	}
 
 	addrs, err := net.InterfaceAddrs()
-
 	if err != nil {
 		return "", err
 	}
@@ -133,24 +143,18 @@ func getIP(ipPtr *string) (string, error) {
 		}
 	}
 
-	return "", errors.New("unable to determine an IP for load balancing")
-
+	return "", errors.New("no IP found")
 }
 
 func main() {
+	rand.Seed(time.Now().UTC().UnixNano())
 	var err error
 
 	disabledPtr := flag.Bool("disable", false, "Disable the node on the load balancer")
 	drainingPtr := flag.Bool("drain", false, "Drain the node from the load balancer")
 	deletePtr := flag.Bool("delete", false, "Delete the node from the load balancer")
-
-	//NOTE: peekaboo allows setting the IP by using
-	//        - environment variables: RAX_SERVICENET_IPV4 or RAX_PUBLICNET_IPV4
-	//        - finding an ip on the system starting with 10. (service net)
-	//        - locating the eth0 interface
-	//        - providing an ip as a flag is fine too and will take precedence
 	ipPtr := flag.String("ip", "", "IP address to register/deregister on the load balancer")
-	timeout := flag.Int("timeout", 60, "Seconds to wait for the load balancer to become available")
+	interval := flag.Int("interval", 5, "Seconds to wait between each modification attempt")
 
 	flag.Parse()
 
@@ -166,57 +170,47 @@ func main() {
 	strLoadBalancerID := os.Getenv("LOAD_BALANCER_ID")
 	strAppPort := os.Getenv("APP_PORT")
 
-	/**
-	 * Retrieve port for load balancer's node, defaulting to 80
-	 */
+	// Retrieve the port for this load balancer node, defaulting to 80.
 	var nodePort = 80
-
 	if strAppPort == "" {
 		log.Printf("$APP_PORT not set, defaulting to 80")
 	} else {
 		nodePort, err = strconv.Atoi(strAppPort)
 		if err != nil {
-			log.Fatalf("Unable to parse integer from $APP_PORT: %v\n", strAppPort)
+			log.Fatalf("Unable to parse integer from $APP_PORT: %v", strAppPort)
 		}
 	}
 
-	/**
-	 * Determine the IP Address for the load balancer's node
-	 */
+	// Determine the IP Address for the load balancer's node
 	nodeAddress, err := getIP(ipPtr)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("Unable to determine IP address: %v", err)
 	}
 
-	/**
-	 * Retrive Load Balancer ID
-	 */
+	// Retrieve the Load Balancer ID.
 	if strLoadBalancerID == "" {
 		log.Fatalln("$LOAD_BALANCER_ID must be set")
 	}
 	loadBalancerID, err := strconv.Atoi(strLoadBalancerID)
 	if err != nil {
-		log.Fatalf("$LOAD_BALANCER_ID not an integer: %v\n", loadBalancerID)
+		log.Fatalf("$LOAD_BALANCER_ID [%s] is not an integer: %v", strLoadBalancerID, err)
 	}
 
 	provider, err := rackspace.AuthenticatedClient(gophercloud.AuthOptions{
 		Username: username,
 		APIKey:   APIKey,
 	})
-
 	if err != nil {
-		log.Fatalf("Trouble authenticating to Rackspace: %v\n", err)
+		log.Fatalf("Trouble authenticating to Rackspace: %v", err)
 	}
+	provider.HTTPClient.Timeout = 30 * time.Second
 
 	client, err := rackspace.NewLBV1(provider, gophercloud.EndpointOpts{
 		Region: region,
 	})
-
 	if err != nil {
-		log.Fatalf("Creating load balancer client in %v failed: %v\n", region, err)
+		log.Fatalf("Creating load balancer client in %v failed: %v", region, err)
 	}
-
-	waitForReady(client, loadBalancerID, *timeout)
 
 	nodePtr := findNodeByIPPort(client, loadBalancerID, nodeAddress, nodePort)
 
@@ -228,15 +222,11 @@ func main() {
 		if *disabledPtr {
 			condition = nodes.DISABLED
 		} else if *drainingPtr {
-			//TODO: Watch the interface on the right process/container to determine
-			//      when connections have dropped, and set to DISABLED
 			condition = nodes.DRAINING
 		}
 
-		log.Printf("Setting %v:%v to be %v on load balancer %v\n",
-			nodeAddress, nodePort,
-			condition,
-			loadBalancerID)
+		log.Printf("Setting %v:%v to be %v on load balancer %v",
+			nodeAddress, nodePort, condition, loadBalancerID)
 
 		if nodePtr != nil {
 			log.Printf("Updating existing node %v", *nodePtr)
@@ -245,14 +235,15 @@ func main() {
 				Condition: condition,
 			}
 
-			updateResult := nodes.Update(client, loadBalancerID, nodePtr.ID, opts)
-			err = updateResult.ExtractErr()
+			err = backoff(*interval, func() error {
+				return nodes.Update(client, loadBalancerID, nodePtr.ID, opts).ExtractErr()
+			})
 			if err != nil {
-				log.Panicf("Updating node failed: %v", err)
+				log.Fatalf("Unable to update node: %v", err)
 			}
 
 		} else {
-			log.Printf("Creating new node")
+			log.Printf("Creating new node.")
 			opts := nodes.CreateOpts{
 				nodes.CreateOpt{
 					Address:   nodeAddress,
@@ -261,37 +252,39 @@ func main() {
 				},
 			}
 
-			nodeList, err := nodes.Create(client, loadBalancerID, opts).ExtractNodes()
+			var created []nodes.Node
+			err = backoff(*interval, func() error {
+				created, err = nodes.Create(client, loadBalancerID, opts).ExtractNodes()
+				return err
+			})
 			if err != nil {
-				log.Fatalf("Error enumerating created nodes: %v", err)
+				log.Fatalf("Error creating the node: %v", err)
 			}
-			if len(nodeList) != 1 {
-				log.Panicf("Something went terribly wrong on node creation: %#v\n", nodeList)
+			if len(created) != 1 {
+				log.Fatalf("Something went terribly wrong during node creation: %#v", created)
 			}
-			nodePtr = &nodeList[0]
+			nodePtr = &created[0]
 		}
 
-		waitForReady(client, loadBalancerID, *timeout)
-
-		// After update, get the version of the node Rackspace has
-		result := nodes.Get(client, loadBalancerID, nodePtr.ID)
-		nodePtr, err = result.Extract()
+		// After the update completes, get the final version of the node.
+		nodePtr, err := nodes.Get(client, loadBalancerID, nodePtr.ID).Extract()
 		if err != nil {
-			log.Panicln(err)
+			log.Fatalf("Update to retrieve final node state: %v", err)
 		}
 
-		log.Printf("Final node state: %v\n", *nodePtr)
+		log.Printf("Final node state: %v", *nodePtr)
 	} else {
 		// Delete an existing node from the balancer. Do nothing if no node exists.
 		if nodePtr != nil {
 			log.Printf("Deleting existing node %v", *nodePtr)
 
-			err := nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
+			err = backoff(*interval, func() error {
+				return nodes.Delete(client, loadBalancerID, nodePtr.ID).ExtractErr()
+			})
 			if err != nil {
 				log.Fatalf("Unable to delete node %d: %v", nodePtr.ID, err)
 			}
 
-			waitForReady(client, loadBalancerID, *timeout)
 			log.Println("Final node state: Deleted")
 		} else {
 			log.Println("Node is already gone. Hooray?")
